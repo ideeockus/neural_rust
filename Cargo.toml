@@ -1,5 +1,5 @@
 [package]
-name = "nnsumer"
+name = "neural_rust"
 version = "0.1.0"
 authors = ["radmirkus <radmirka745@gmail.com>"]
 edition = "2018"

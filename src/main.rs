@@ -37,7 +37,7 @@ impl Neuron {
       }
   }
 
-  /// RELU function of neuron
+  /// RELU function of neuron (scaling function)
   fn relu(x: f64) -> f64 {
     match x {
       x if x < 0.0 => 0.0,
@@ -50,7 +50,7 @@ impl Neuron {
   fn activate(&mut self, use_relu: bool) -> f64 {
     let mut sum: f64 = 0.0;
     for i in 0..self.weights.len() {
-      sum += self.input_values[i] * self.weights[i];
+      sum += self.input_values[i] * self.weights[i] + self.bias;
     }
     if !use_relu { return sum }
     self.output_value = Neuron::relu(sum);
@@ -70,6 +70,15 @@ impl Layer {
 
     Layer { neurons: neurons }
 
+  }
+
+  /// Collect inputs of all neurons in layer to one Vec<f64>
+  fn get_neurons_inputs(&self) -> Vec<f64> {
+    let mut neurons_inputs: Vec<f64> = Vec::new();
+    for neuron in self.neurons.iter() {
+      neurons_inputs.extend(&neuron.input_values);
+    }
+    neurons_inputs
   }
 
   /// Collect outputs of all neurons in layer to one Vec<f64>
@@ -104,16 +113,18 @@ impl Model {
     // init weights for input neurons
     let input_layer_neurons_count = self.layers.first().unwrap().neurons.len();
     for input_neuron in self.layers.first_mut().unwrap().neurons.iter_mut() {
-      input_neuron.weights = vec!(my_random(0.0, 0.3));
+      input_neuron.weights = vec!(my_random(0.0, 0.08));
+      input_neuron.bias = my_random(0.0, 0.2);
     }
 
     // init weights for other neurons
     for layer_index in 1..self.layers.len() {
       let last_layer_neurons_count = self.layers[layer_index-1].neurons.len();
       for neuron in self.layers[layer_index].neurons.iter_mut() {
+        neuron.bias = my_random(0.0, 0.2);
         let mut uninitialized_connections_count = last_layer_neurons_count;
         while uninitialized_connections_count > 0 {
-          neuron.weights.push(my_random(0.0, 0.2));
+          neuron.weights.push(my_random(0.0, 0.08));
           uninitialized_connections_count -= 1;
         }
       }
@@ -138,6 +149,112 @@ impl Model {
     }
   }
 
+  // fn back_propagation(&mut self, data_output: Vec<f64>) {
+  //   let correct_output = data_output;
+    
+  //   for layer_index in (1..self.layers.len()).rev() {
+  //     let previous_layer_index = layer_index-1;
+  //     let previous_layer_len = self.layers[previous_layer_index].neurons.len();
+  //     let mut weight_corrections: Vec<f64> = vec![0.0; previous_layer_len];
+  //     let mut bias_corrections: Vec<f64> = vec![0.0; previous_layer_len];
+  //     // let use_relu: bool = if layer_index == self.layers.len() { false } else { true };
+
+  //     for neuron_index in 0..self.layers[layer_index].neurons.len() {
+  //       let neuron = &mut self.layers[layer_index].neurons[neuron_index];
+  //       let activation_value = neuron.output_value;
+  //       let previous_layer_activations = self.layers[previous_layer_index].get_neurons_outputs();
+  //       for i in 0..previous_layer_len {
+  //         let weight_correction = 2.0 * (activation_value - correct_output[neuron_index])
+  //                                   * activation_value * previous_layer_activations[i];
+  //         // weight_corrections.push(weight_correction);
+  //         weight_corrections[i] += weight_correction;
+  //         let bias_correction = 2.0 * (activation_value * correct_output[neuron_index])
+  //                                   * activation_value;
+  //         bias_corrections[i] += bias_correction;
+  //       }
+  //     }
+  //     for previous_layer_neuron_index in 0..previous_layer_len {
+  //       let previous_layer_neuron = &mut self.layers[previous_layer_index]
+  //                                           .neurons[previous_layer_neuron_index];
+  //       previous_layer_neuron.
+  //     }
+  //   }
+
+  // fn back_propagation(&mut self, data_output: Vec<f64>) {
+  //   let mut correct_output = data_output;
+
+  //   for layer_index in (1..self.layers.len()).rev() {
+  //     let mut previous_layer_activations = self.layers[layer_index-1].get_neurons_outputs();
+  //     for neuron_index in 0..self.layers[layer_index].neurons.len() {
+  //       let neuron = &mut self.layers[layer_index].neurons[neuron_index];
+  //       let activation_value = neuron.output_value;
+  //       // let mut previous_layer_output_corrections: Vec<f64> = previous_layer_activations.clone();
+  //       let bias_correction = 2.0 * (activation_value - correct_output[neuron_index])
+  //                                   * activation_value;
+  //       neuron.bias -= bias_correction;
+  //       for i in 0..neuron.input_values.len() {
+  //         let weight_correction = 2.0 * (activation_value - correct_output[neuron_index])
+  //                                   * activation_value * previous_layer_activations[i];
+  //         neuron.weights[i] -= weight_correction;
+
+  //         let previous_layer_output_correction = 2.0 
+  //         * (activation_value - correct_output[neuron_index]);
+  //         previous_layer_activations[i] -= previous_layer_output_correction;
+  //       }
+        
+  //     }
+  //     correct_output = previous_layer_activations;
+  //   }
+  // } 
+
+  fn back_propagation(&mut self, data_output: Vec<f64>, descent_speed: f64) {
+    println!("BACK PROPOGATION");
+    let mut correct_output = data_output;
+
+    for layer_index in (0..self.layers.len()).rev() {
+      println!("{:?} слой", layer_index);
+      let mut previous_layer_activations = if layer_index==0 {
+        self.layers[layer_index].get_neurons_inputs()
+      } else {
+        self.layers[layer_index-1].get_neurons_outputs()
+      };
+      println!("активации предыдущего слоя: {:?}", previous_layer_activations);
+      println!("correct_output: {:?}", correct_output);
+      let use_relu = if layer_index==self.layers.len()-1 {false} else {true};
+      println!("use_relu {:?}", use_relu);
+      for neuron_index in 0..self.layers[layer_index].neurons.len() {
+        println!("{:?} нейрон", neuron_index);
+        let neuron = &mut self.layers[layer_index].neurons[neuron_index];
+        // let activation_value = neuron.output_value;
+        let activation_value = neuron.activate(use_relu);
+        println!("его активация равна {:?}", activation_value);
+        // let err = 2.0 * (activation_value - correct_output[neuron_index]).abs();
+        // let mut previous_layer_output_corrections: Vec<f64> = previous_layer_activations.clone();
+        
+        // let bias_correction = 2.0 * (activation_value - correct_output[neuron_index])
+        //                             * activation_value;
+        let bias_correction = (activation_value - correct_output[neuron_index]) * activation_value;
+        //                             * activation_value;
+        neuron.bias -= bias_correction * descent_speed;
+        println!("коррекция bias {:?}", bias_correction);
+ 
+        for i in 0..neuron.input_values.len() {
+          let weight_correction = (activation_value - correct_output[neuron_index])
+                      * activation_value * previous_layer_activations[i];
+          println!("коррекция weight[{}] {:?}", i, weight_correction);
+
+          let previous_layer_output_correction = (activation_value - correct_output[neuron_index]) * neuron.weights[i];
+          // println!("{:?}", );
+          neuron.weights[i] -= weight_correction * descent_speed;
+          previous_layer_activations[i] -= previous_layer_output_correction * descent_speed;
+        }
+      }
+      correct_output = previous_layer_activations.into_iter().map(|o| Neuron::relu(o)).collect();
+      println!("коррекции активаций предыдущего слоя {:?}", correct_output);
+      println!();
+    }
+  } 
+
   /// Train network on data
   fn train(&self, data: Vec<Vec<i32>>) {
 
@@ -151,7 +268,7 @@ impl Model {
     for index in 0..self.layers[0].neurons.len() {
       let input_neuron = &mut self.layers[0].neurons[index];
       input_neuron.input_values = vec!(vac[index]);
-      input_neuron.weights = vec!(1.0);
+      // input_neuron.weights = vec!(1.0);
     }
     self.ff();
     let model_output = self.layers.last().unwrap().get_neurons_outputs();
@@ -166,10 +283,13 @@ impl std::fmt::Display for Model {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
       let mut model_representation = String::from("Model:\n");
       for layer in self.layers.iter() {
-        let mut layer_representation = String::new();
+        // let mut layer_representation = String::new();
+        let layer_splitter = "========= ========= =========\n";
+        model_representation.push_str(layer_splitter);
         for neuron in layer.neurons.iter() {
           model_representation.push_str(&neuron.to_string());
         }
+        model_representation.push_str(layer_splitter);
         model_representation.push_str("\n\n\n");
       }
       write!(f, "{}", model_representation)
@@ -183,10 +303,14 @@ impl std::fmt::Display for Neuron {
       };
       // let weights = 
       let weights: Vec<f64> = format_floats(&self.weights);
+      let bias: f64 = (self.bias * 1000.0).round() / 1000.0;
       let input_values: Vec<f64> = format_floats(&self.input_values);
-      let neuron_display = format!("{side}\nweights {:?}\n\
-        inputs {:?}\noutputs {:^7.5}\n{side}\n",
-       weights, input_values, self.output_value, side="+++++++++ +++++++++");
+      let neuron_display = format!("{side}\n\
+        inputs {:?}\n\
+        weights {:?}\n\
+        bias {}\n\
+        outputs {:^7.5}\n{side}\n",
+       input_values, weights, bias, self.output_value, side="+++++++++ +++++++++");
       write!(f, "{}", neuron_display)
     }
 }
@@ -224,10 +348,37 @@ fn main() {
 
     // let train_data = make_train_data(50);
     // model.train(train_data);
+    let mut results: Vec<f64> = Vec::new();
 
-    let results = model.evaluate(vec!(2 as f64, 2 as f64));
+    let result1 = model.evaluate(vec!(2 as f64, 2 as f64));
     println!("{}", model);
+    results.push(result1[0]);
+
+    model.back_propagation(vec!(4.0), 0.05);
+    let result2 = model.evaluate(vec!(2 as f64, 2 as f64));
+    println!("{}", model);
+    results.push(result2[0]);
+
+    for i in 0..10 {
+      model.back_propagation(vec!(4.0), 0.05);
+      let tmp_result = model.evaluate(vec!(2 as f64, 2 as f64));
+      results.push(tmp_result[0]);
+      println!("{}", model);
+    }
+    model.back_propagation(vec!(4.0), 0.05);
+    let result3 = model.evaluate(vec!(2 as f64, 2 as f64));
+    println!("{}", model);
+    results.push(result3[0]);
+
+    println!("{:?} -> {:?} -> {:?}", result1, result2, result3);
+    println!("");
     println!("{:?}", results);
+    // println!("{:?} -> {:?}", result1, result3);
+
+    // results.into_iter().map(
+    //   |r| print!("{}", r)
+    //   );
+
 }
 
 
