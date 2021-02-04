@@ -2,6 +2,7 @@
 //!
 //! So it may have many disadvanages or mistakes
 
+use std::io::Write;
 use rand::prelude::*;
 
 
@@ -208,40 +209,33 @@ impl Model {
   // } 
 
   fn back_propagation(&mut self, data_output: Vec<f64>, descent_speed: f64) {
-    println!("BACK PROPOGATION");
+    // println!("BACK PROPOGATION");
     let mut correct_output = data_output;
 
     for layer_index in (0..self.layers.len()).rev() {
-      println!("{:?} слой", layer_index);
+      // println!("{:?} слой", layer_index);
       let mut previous_layer_activations = if layer_index==0 {
         self.layers[layer_index].get_neurons_inputs()
       } else {
         self.layers[layer_index-1].get_neurons_outputs()
       };
-      println!("активации предыдущего слоя: {:?}", previous_layer_activations);
-      println!("correct_output: {:?}", correct_output);
+      // println!("активации предыдущего слоя: {:?}", previous_layer_activations);
+      // println!("correct_output: {:?}", correct_output);
       let use_relu = if layer_index==self.layers.len()-1 {false} else {true};
-      println!("use_relu {:?}", use_relu);
+      // println!("use_relu {:?}", use_relu);
       for neuron_index in 0..self.layers[layer_index].neurons.len() {
-        println!("{:?} нейрон", neuron_index);
+        // println!("{:?} нейрон", neuron_index);
         let neuron = &mut self.layers[layer_index].neurons[neuron_index];
-        // let activation_value = neuron.output_value;
         let activation_value = neuron.activate(use_relu);
-        println!("его активация равна {:?}", activation_value);
-        // let err = 2.0 * (activation_value - correct_output[neuron_index]).abs();
-        // let mut previous_layer_output_corrections: Vec<f64> = previous_layer_activations.clone();
-        
-        // let bias_correction = 2.0 * (activation_value - correct_output[neuron_index])
-        //                             * activation_value;
+        // println!("его активация равна {:?}", activation_value);
         let bias_correction = (activation_value - correct_output[neuron_index]) * activation_value;
-        //                             * activation_value;
         neuron.bias -= bias_correction * descent_speed;
-        println!("коррекция bias {:?}", bias_correction);
+        // println!("коррекция bias {:?}", bias_correction);
  
         for i in 0..neuron.input_values.len() {
           let weight_correction = (activation_value - correct_output[neuron_index])
                       * activation_value * previous_layer_activations[i];
-          println!("коррекция weight[{}] {:?}", i, weight_correction);
+          // println!("коррекция weight[{}] {:?}", i, weight_correction);
 
           let previous_layer_output_correction = (activation_value - correct_output[neuron_index]) * neuron.weights[i];
           // println!("{:?}", );
@@ -250,14 +244,18 @@ impl Model {
         }
       }
       correct_output = previous_layer_activations.into_iter().map(|o| Neuron::relu(o)).collect();
-      println!("коррекции активаций предыдущего слоя {:?}", correct_output);
-      println!();
+      // println!("коррекции активаций предыдущего слоя {:?}", correct_output);
+      // println!();
     }
   } 
 
   /// Train network on data
-  fn train(&self, data: Vec<Vec<i32>>) {
+  fn train(&mut self, data: (Vec<f64>, Vec<f64>)) {
+    let train_data_input = data.0;
+    let train_data_output = data.1;
 
+    self.evaluate(train_data_input);
+    self.back_propagation(train_data_output, 0.05);
     // self.inputs
 
   }
@@ -323,14 +321,18 @@ fn my_random(min: f64, max: f64) -> f64{
 
 /// This function is not part of neural network,
 /// it just make data for training
-fn make_train_data(data_pairs_count: i32) -> Vec<Vec<f64>> {
-  let mut train_data: Vec<Vec<f64>> = Vec::new();
+fn make_train_data(data_pairs_count: i32) -> Vec<(Vec<f64>, Vec<f64>)> {
+  let mut train_data: Vec<(Vec<f64>, Vec<f64>)> = Vec::new();
+  // let mut train_data_input: Vec<f64> = Vec::new();
+  // let mut train_data_output: Vec<f64> = Vec::new();
   for i in 0..data_pairs_count {
-    let a1 = my_random(-100.0, 100.0);
-    let a2 = my_random(-100.0, 100.0);
+    let a1 = my_random(0.0, 1.0);
+    let a2 = my_random(0.0, 1.0);
     let sum = a1 + a2;
-    let train_pair = vec![a1, a2, sum];
-    train_data.push(train_pair);
+    let train_data_input = vec![a1, a2];
+    let train_data_output = vec![sum];
+    
+    train_data.push((train_data_input, train_data_output));
   }
   train_data
 }
@@ -339,40 +341,57 @@ fn make_train_data(data_pairs_count: i32) -> Vec<Vec<f64>> {
 /// This is start point
 fn main() {
     let mut model = Model::new(2);
-    model.addLayer(5);
+    // model.addLayer(5);
     model.addLayer(1);
     model.init_weights();
 
     // println!("{}", model.layers[1].neurons[1]);
     // println!("{}", model);
 
-    // let train_data = make_train_data(50);
-    // model.train(train_data);
+    let result1 = model.evaluate(vec!(0.3 as f64, 0.5 as f64));
+    println!("{}", model);
+    // results.push(result1[0]);
+
+    let train_data = make_train_data(50000);
+    // println!("{:?}", train_data);
+    for train_pair in train_data.into_iter() {
+      model.train(train_pair);
+    }
     let mut results: Vec<f64> = Vec::new();
 
-    let result1 = model.evaluate(vec!(2 as f64, 2 as f64));
-    println!("{}", model);
-    results.push(result1[0]);
-
-    model.back_propagation(vec!(4.0), 0.05);
-    let result2 = model.evaluate(vec!(2 as f64, 2 as f64));
+    // model.back_propagation(vec!(4.0), 0.05);
+    println!("Модель после обучения");
+    let result2 = model.evaluate(vec!(0.3 as f64, 0.5 as f64));
     println!("{}", model);
     results.push(result2[0]);
 
-    for i in 0..10 {
-      model.back_propagation(vec!(4.0), 0.05);
-      let tmp_result = model.evaluate(vec!(2 as f64, 2 as f64));
-      results.push(tmp_result[0]);
-      println!("{}", model);
-    }
-    model.back_propagation(vec!(4.0), 0.05);
-    let result3 = model.evaluate(vec!(2 as f64, 2 as f64));
-    println!("{}", model);
-    results.push(result3[0]);
+    // for i in 0..10 {
+    //   model.back_propagation(vec!(4.0), 0.05);
+    //   let tmp_result = model.evaluate(vec!(2 as f64, 2 as f64));
+    //   results.push(tmp_result[0]);
+    //   println!("{}", model);
+    // }
+    // model.back_propagation(vec!(4.0), 0.05);
+    // let result3 = model.evaluate(vec!(2 as f64, 2 as f64));
+    // println!("{}", model);
+    // results.push(result3[0]);
 
-    println!("{:?} -> {:?} -> {:?}", result1, result2, result3);
-    println!("");
-    println!("{:?}", results);
+    println!("{:?} -> {:?}", result1, result2);
+
+    loop {
+      print!("Входные данные нейросети:   ");
+      std::io::stdout().flush().unwrap();
+      let mut input_line = String::new();
+      std::io::stdin().read_line(&mut input_line).unwrap();
+
+      let user_inputs = input_line.split(" ").map(|x| x.trim().parse::<f64>().unwrap()).collect::<Vec<f64>>();
+      println!("Входные данные: {:?}", user_inputs);
+      let res = model.evaluate(user_inputs);
+
+      println!("{:?}", res);
+    }
+    // println!("");
+    // println!("{:?}", results);
     // println!("{:?} -> {:?}", result1, result3);
 
     // results.into_iter().map(
